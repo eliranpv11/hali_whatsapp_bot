@@ -11,7 +11,7 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+ADMIN_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")  # רק ללוגים שלך
 
 app = Flask(__name__)
 
@@ -24,18 +24,20 @@ SYSTEM_PERSONA = (
     "תדברי עברית טבעית, קלילה ונעימה, עם אמוג׳ים עדינים 💅✨🌸🐾."
 )
 
-# ===== פונקציה לשליחת הודעה לטלגרם =====
-def send_to_telegram(msg: str):
+# ===== שליחת הודעה ללוג שלך בטלגרם (לא חובה לכל משתמש) =====
+def send_to_admin_log(msg: str):
+    if not ADMIN_CHAT_ID:
+        return
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        data = {"chat_id": TELEGRAM_CHAT_ID, "text": msg}
+        data = {"chat_id": ADMIN_CHAT_ID, "text": msg}
         requests.post(url, data=data)
     except Exception as e:
-        print("❌ טעות בשליחת הודעה לטלגרם:", e)
+        print("❌ טעות בלוג טלגרם:", e)
 
 
 # ==========================================================
-# 🟢 1. מסלול לוואטסאפ (Twilio Webhook)
+# 🟢 1. נקודת וואטסאפ (Twilio Webhook)
 # ==========================================================
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_reply():
@@ -43,7 +45,7 @@ def whatsapp_reply():
     sender = request.form.get("From") or "unknown"
 
     print(f"💬 הודעה מוואטסאפ ({sender}): {incoming_msg}")
-    send_to_telegram(f"💬 וואטסאפ ({sender}): {incoming_msg}")
+    send_to_admin_log(f"💬 וואטסאפ ({sender}): {incoming_msg}")
 
     tw = MessagingResponse()
 
@@ -63,19 +65,20 @@ def whatsapp_reply():
         )
 
         reply = completion.choices[0].message.content
-        send_to_telegram(f"💅 תשובת חלי (וואטסאפ):\n{reply}")
+        send_to_admin_log(f"💅 תשובת חלי (וואטסאפ):\n{reply}")
+
         tw.message(reply)
         return str(tw)
 
     except Exception as e:
         print("❌ שגיאה בוואטסאפ:", e)
-        send_to_telegram(f"⚠️ שגיאה בוואטסאפ: {e}")
+        send_to_admin_log(f"⚠️ שגיאה בוואטסאפ: {e}")
         tw.message("אופס, הייתה תקלה קטנה 💅 נסי שוב עוד רגע")
         return str(tw), 200
 
 
 # ==========================================================
-# 🔵 2. מסלול לטלגרם (Telegram Webhook)
+# 🔵 2. נקודת טלגרם (Telegram Webhook)
 # ==========================================================
 @app.route("/telegram", methods=["POST"])
 def telegram_reply():
@@ -85,11 +88,10 @@ def telegram_reply():
 
     chat_id = data["message"]["chat"]["id"]
     incoming_msg = data["message"].get("text", "").strip()
+    user_name = data["message"]["from"].get("first_name", "לא ידוע")
 
-    print(f"💬 הודעה מטלגרם ({chat_id}): {incoming_msg}")
-
-    # שולח הודעה לעצמי בוואטסאפ רק ללוג
-    send_to_telegram(f"💬 טלגרם ({chat_id}): {incoming_msg}")
+    print(f"💬 הודעה מטלגרם ({user_name} / {chat_id}): {incoming_msg}")
+    send_to_admin_log(f"💬 טלגרם ({user_name}): {incoming_msg}")
 
     if not incoming_msg:
         send_message_telegram(chat_id, "אני כאן 💅 מה תרצי לשאול או לקבוע?")
@@ -108,17 +110,17 @@ def telegram_reply():
 
         reply = completion.choices[0].message.content
         send_message_telegram(chat_id, reply)
-        send_to_telegram(f"💅 תשובת חלי (טלגרם):\n{reply}")
+        send_to_admin_log(f"💅 תשובת חלי (ל-{user_name}):\n{reply}")
 
     except Exception as e:
         print("❌ שגיאה בטלגרם:", e)
         send_message_telegram(chat_id, "אופס, הייתה תקלה קטנה 💅 נסי שוב עוד רגע")
-        send_to_telegram(f"⚠️ שגיאה בטלגרם: {e}")
+        send_to_admin_log(f"⚠️ שגיאה בטלגרם: {e}")
 
     return "ok", 200
 
 
-# ===== פונקציה נפרדת לשליחת הודעות בטלגרם =====
+# ===== פונקציה כללית לשליחת הודעות למשתמשים בטלגרם =====
 def send_message_telegram(chat_id, text):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
