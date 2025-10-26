@@ -1,4 +1,5 @@
 flask
 twilio
-python-dotenv
 openai
+python-dotenv
+requests
