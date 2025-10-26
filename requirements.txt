@@ -1,7 +1,0 @@
-flask
-twilio
-openai
-python-dotenv
-requests
-gunicorn
-
