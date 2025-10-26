@@ -3,67 +3,102 @@ from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
 from openai import OpenAI
 from dotenv import load_dotenv
+from collections import defaultdict, deque
 import os
-import requests
+import time
 
-# טעינת המפתחות מה-.env
+# טוען מפתח מה-.env
 load_dotenv()
-
-# חיבור ל-OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-# רק משתנים שקשורים לוואטסאפ
-TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
+
+# ===== הגדרות =====
+MODEL = "gpt-4o"          # לא זול. לטסט זול יותר: "gpt-4o-mini"
+MAX_TURNS = 15            # כמה הודעות נזכור לכל משתמש (קצר-טווח)
+SYSTEM_PERSONA = (
+    "את חלי – בונת ציפורניים מקצועית, חמה, מצחיקה ואדיבה. "
+    "את מדברת עברית טבעית, קלילה ונעימה, עם אמפתיה ודיוק מקצועי. "
+    "תחומי ידע: מניקור, פדיקור, בנייה, ג'ל, פרנץ', עיצובים, צבעים, חומרים, תחזוקה. "
+    "בבקשות תורים: שאלת המשך ברורה (יום מועדף, בוקר/ערב), הצעת חלופות אם אין. "
+    "שמרי תשובות קצרות, מעשיות וידידותיות; אפשר אמוג'י מדי פעם (לא להציף). "
+    "אם משהו לא ברור – בקשי הבהרה בנימוס. "
+    "אין לתת ייעוץ רפואי; במקרה כזה להמליץ לפנות למקצועית מתאימה."
+)
+
+# ===== זיכרון שיחות: לכל שולח נשמור תור היסטוריה =====
+SESSIONS: dict[str, deque] = defaultdict(lambda: deque(maxlen=MAX_TURNS))
 
 app = Flask(__name__)
 
-# אישיות של הבוט
-SYSTEM_PERSONA = (
-    "את חלי 💅 – בונת ציפורניים מקצועית עם ניסיון של כמעט שלוש שנים בלבד. "
-    "תמיד תצייני 'כמעט שלוש שנים' – לעולם לא יותר. "
-    "את חמה, מצחיקה וקלילה, עם כלבה מתוקה בשם ג׳וי 🐶. "
-    "כשלקוחות מתלבטות לגבי צבעים או עיצובים – תסבירי בהתלהבות ועם המלצה אישית. "
-    "תדברי עברית טבעית, קלילה ונעימה, עם אמוג׳ים עדינים 💅✨🌸🐾."
-)
+def build_messages(sender: str, user_text: str):
+    """
+    בונה את רשימת ההודעות למודל: system + היסטוריה + הודעת המשתמש.
+    """
+    history = list(SESSIONS[sender])  # [(role, content), ...]
+    msgs = [{"role": "system", "content": SYSTEM_PERSONA}]
+    for role, content in history:
+        msgs.append({"role": role, "content": content})
+    msgs.append({"role": "user", "content": user_text})
+    return msgs
 
-# Webhook של וואטסאפ
+def remember(sender: str, role: str, content: str):
+    """
+    מוסיף הודעה לזיכרון של המשתמש (קצר-טווח).
+    """
+    SESSIONS[sender].append((role, content))
+
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_reply():
+    start = time.time()
     incoming_msg = (request.form.get("Body") or "").strip()
     sender = request.form.get("From") or "unknown"
 
-    print(f"💬 הודעה מוואטסאפ ({sender}): {incoming_msg}")
-
-    # הגדרת תשובה לבוט
     tw = MessagingResponse()
 
+    # אין טקסט? נחזיר הודעה קצרה
     if not incoming_msg:
         tw.message("אני כאן 💅 מה תרצי לשאול או לקבוע?")
         return str(tw)
 
+    # פקודת איפוס ידנית
+    if incoming_msg in {"איפוס", "reset", "נקה", " /reset"}:
+        SESSIONS.pop(sender, None)
+        tw.message("ניקיתי את השיחה ואיפסתי זיכרון 🧼 אפשר להמשיך מאפס!")
+        return str(tw)
+
     try:
-        # שליחת ההודעה ל-OpenAI לקבלת תשובה
+        # בונה הקשר עם הזיכרון
+        messages = build_messages(sender, incoming_msg)
+
+        # קריאה ל-GPT
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": SYSTEM_PERSONA},
-                {"role": "user", "content": incoming_msg}
-            ],
+            model=MODEL,
+            messages=messages,
             temperature=0.8,
-            max_tokens=300,
+            max_tokens=350,
         )
 
-        reply = completion.choices[0].message.content
+        # חילוץ תשובה (תואם לגרסאות שונות)
+        try:
+            reply = completion.choices[0].message.content
+        except AttributeError:
+            reply = completion.choices[0].message["content"]
 
-        # החזרת התשובה לוואטספ
+        # שומר זיכרון (הודעת משתמש + תשובת הבוט)
+        remember(sender, "user", incoming_msg)
+        remember(sender, "assistant", reply)
+
         tw.message(reply)
         return str(tw)
 
     except Exception as e:
-        print("❌ שגיאה בוואטסאפ:", e)
-        tw.message("אופס, הייתה תקלה קטנה 💅 נסי שוב עוד רגע")
-        return str(tw), 200
+        # לוג למסוף + תשובת fallback ללקוחה
+        print("❌ ERROR:", repr(e))
+        tw.message(
+            "אופס, הייתה תקלה קטנה רגעית ואני על זה 🛠️. "
+            "אפשר לנסות שוב בעוד דקה או לכתוב לי מה נוח לך לתור (יום ושעה) ואחזור עם אישור."
+        )
+        return str(tw), 200  # מחזירים 200 כדי שטוויליו לא ינסה שוב אוטומטית
 
-
-# הפעלת השרת
 if __name__ == "__main__":
+    # לריצה מקומית + ngrok
     app.run(host="0.0.0.0", port=5000)
