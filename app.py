@@ -8,45 +8,38 @@ from dotenv import load_dotenv
 # טוען משתני סביבה
 load_dotenv()
 
-# התחברות ל-OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 app = Flask(__name__)
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_reply():
-    incoming_msg = request.form.get("Body")
-    sender = request.form.get("From")
-
-    # מדפיס ללוגים כדי לבדוק שההודעה מגיעה
-    print(f"📩 התקבלה הודעה מ-{sender}: {incoming_msg}")
+    incoming_msg = request.form.get("Body", "").strip()
+    from_number = request.form.get("From", "")
+    print(f"📩 התקבלה הודעה מ-{from_number}: {incoming_msg}")
 
     try:
-        # שליחת הבקשה ל-OpenAI
+        # יצירת תשובה עם בינה מלאכותית
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
-                {
-                    "role": "system",
-                    "content": "אתה עוזר אישי נחמד שמשיב בעברית על שאלות המשתמש."
-                },
+                {"role": "system", "content": "אתה עוזר אישי בשם חלי, ענה בעברית בנימוס ובטבעיות."},
                 {"role": "user", "content": incoming_msg}
             ]
         )
-
-        reply = response.choices[0].message.content
-        print(f"💬 תשובה שנשלחה ל-{sender}: {reply}")
-
+        ai_reply = response.choices[0].message.content.strip()
     except Exception as e:
-        reply = "😕 חלה תקלה זמנית. נסה שוב עוד רגע."
-        print(f"❌ שגיאה: {e}")
+        ai_reply = f"שגיאה: {str(e)}"
 
-    # שליחת תגובה ל-Twilio
+    print(f"💬 תשובה שנשלחה ל-{from_number}: {ai_reply}")
+
     twilio_resp = MessagingResponse()
-    twilio_resp.message(reply)
+    twilio_resp.message(ai_reply)
     return str(twilio_resp)
 
+@app.route("/", methods=["GET"])
+def index():
+    return "✅ Hali WhatsApp Bot is running!"
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=10000)
