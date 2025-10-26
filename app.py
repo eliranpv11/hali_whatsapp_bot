@@ -41,7 +41,7 @@ def whatsapp_reply():
     sender = request.form.get("From") or "unknown"
 
     print(f"💬 הודעה מ-{sender}: {incoming_msg}")
-    send_to_telegram(f"💬 וואטסאפ ({sender}): {incoming_msg}")
+    send_to_telegram(f"💬 הודעה חדשה מוואטסאפ ({sender}):\n{incoming_msg}")
 
     tw = MessagingResponse()
 
@@ -61,14 +61,16 @@ def whatsapp_reply():
         )
 
         reply = completion.choices[0].message.content
-        send_to_telegram(f"💅 תשובת חלי:\n{reply}")
+
+        # שליחה לטלגרם גם של התשובה של חלי
+        send_to_telegram(f"💅 תשובת חלי ל-{sender}:\n{reply}")
 
         tw.message(reply)
         return str(tw)
 
     except Exception as e:
         print("❌ שגיאה:", e)
-        send_to_telegram(f"⚠️ שגיאה בחלי: {e}")
+        send_to_telegram(f"⚠️ שגיאה בחלי:\n{e}")
         tw.message("אופס, הייתה תקלה קטנה 💅 נסי שוב עוד רגע")
         return str(tw), 200
 
