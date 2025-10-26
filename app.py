@@ -11,7 +11,7 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-ADMIN_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")  # רק ללוגים שלך
+HLI_CHAT_ID = os.getenv("HLI_CHAT_ID")  # Chat ID של חלי
 
 app = Flask(__name__)
 
@@ -24,16 +24,14 @@ SYSTEM_PERSONA = (
     "תדברי עברית טבעית, קלילה ונעימה, עם אמוג׳ים עדינים 💅✨🌸🐾."
 )
 
-# ===== שליחת הודעה ללוג שלך בטלגרם (לא חובה לכל משתמש) =====
-def send_to_admin_log(msg: str):
-    if not ADMIN_CHAT_ID:
-        return
+# ===== שליחת הודעה לטלגרם של חלי (למעקב בלבד) =====
+def send_to_hali_telegram(msg: str):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        data = {"chat_id": ADMIN_CHAT_ID, "text": msg}
+        data = {"chat_id": HLI_CHAT_ID, "text": msg}
         requests.post(url, data=data)
     except Exception as e:
-        print("❌ טעות בלוג טלגרם:", e)
+        print("❌ טעות בטלגרם של חלי:", e)
 
 
 # ==========================================================
@@ -45,7 +43,9 @@ def whatsapp_reply():
     sender = request.form.get("From") or "unknown"
 
     print(f"💬 הודעה מוואטסאפ ({sender}): {incoming_msg}")
-    send_to_admin_log(f"💬 וואטסאפ ({sender}): {incoming_msg}")
+
+    # שליחה גם לטלגרם של חלי (למעקב בלבד)
+    send_to_hali_telegram(f"💬 וואטסאפ ({sender}): {incoming_msg}")
 
     tw = MessagingResponse()
 
@@ -65,14 +65,16 @@ def whatsapp_reply():
         )
 
         reply = completion.choices[0].message.content
-        send_to_admin_log(f"💅 תשובת חלי (וואטסאפ):\n{reply}")
+
+        # שליחה גם לטלגרם של חלי
+        send_to_hali_telegram(f"💅 תשובת חלי (וואטסאפ):\n{reply}")
 
         tw.message(reply)
         return str(tw)
 
     except Exception as e:
         print("❌ שגיאה בוואטסאפ:", e)
-        send_to_admin_log(f"⚠️ שגיאה בוואטסאפ: {e}")
+        send_to_hali_telegram(f"⚠️ שגיאה בוואטסאפ: {e}")
         tw.message("אופס, הייתה תקלה קטנה 💅 נסי שוב עוד רגע")
         return str(tw), 200
 
@@ -91,7 +93,6 @@ def telegram_reply():
     user_name = data["message"]["from"].get("first_name", "לא ידוע")
 
     print(f"💬 הודעה מטלגרם ({user_name} / {chat_id}): {incoming_msg}")
-    send_to_admin_log(f"💬 טלגרם ({user_name}): {incoming_msg}")
 
     if not incoming_msg:
         send_message_telegram(chat_id, "אני כאן 💅 מה תרצי לשאול או לקבוע?")
@@ -110,12 +111,10 @@ def telegram_reply():
 
         reply = completion.choices[0].message.content
         send_message_telegram(chat_id, reply)
-        send_to_admin_log(f"💅 תשובת חלי (ל-{user_name}):\n{reply}")
 
     except Exception as e:
         print("❌ שגיאה בטלגרם:", e)
         send_message_telegram(chat_id, "אופס, הייתה תקלה קטנה 💅 נסי שוב עוד רגע")
-        send_to_admin_log(f"⚠️ שגיאה בטלגרם: {e}")
 
     return "ok", 200
 
