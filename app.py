@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
-import openai
+from openai import OpenAI
 import os
 from dotenv import load_dotenv
 
-# ???? ?? ????? ??????
+# טוען משתני סביבה
 load_dotenv()
 
-# ???? OpenAI
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# מפתח ה-API
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = Flask(__name__)
 
@@ -18,18 +18,19 @@ def whatsapp_reply():
     incoming_msg = request.form.get("Body")
     sender = request.form.get("From")
 
-    response = openai.ChatCompletion.create(
+    # שולח את ההודעה למודל החדש
+    response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
             {
                 "role": "system",
-                "content": "??? ??? ??????? ???? ?????????? ?? ???. ??? ???? ????, ?????? ???????. ???? ??????? ????? ???, ???? ?????? ????? ???? ?? ???????."
+                "content": "אתה בוט וואטסאפ של העסק 'חלי'. דבר בנעימות, במקצועיות, ועזור ללקוחות עם שאלות על תורים, טיפולים ומחירים."
             },
             {"role": "user", "content": incoming_msg}
         ]
     )
 
-    reply = response.choices[0].message["content"]
+    reply = response.choices[0].message.content
 
     twilio_resp = MessagingResponse()
     twilio_resp.message(reply)
