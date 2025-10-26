@@ -1,56 +1,36 @@
-# -*- coding: utf-8 -*-
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
-from openai import OpenAI
-import os
-from dotenv import load_dotenv
 
-# טען את משתני הסביבה (כדי שנוכל להשתמש במפתח API בצורה מאובטחת)
-load_dotenv()
-
-# חיבור ל-OpenAI עם מפתח מתוך משתני סביבה
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# יצירת אפליקציית Flask
 app = Flask(__name__)
 
-# מסלול ברירת מחדל לבדיקה שהשרת פעיל
-@app.route("/", methods=["GET"])
-def home():
-    return "✅ Hali WhatsApp Bot is running!"
-
-# מסלול לקבלת הודעות מ-WhatsApp
 @app.route("/whatsapp", methods=["POST"])
-def whatsapp_reply():
-    # שליפת תוכן ההודעה ומספר השולח
-    incoming_msg = request.form.get("Body", "").strip()
-    from_number = request.form.get("From", "")
-    print(f"📩 התקבלה הודעה מ-{from_number}: {incoming_msg}")
+def whatsapp_bot():
+    incoming_msg = request.values.get("Body", "").strip().lower()
+    sender = request.values.get("From", "")
 
-    try:
-        # קריאה למודל GPT-4o-mini עם הנחיית מערכת קבועה
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "את העוזרת האישית חלי. דברי תמיד בעברית, בטון אישי, חמים ונעים, ועני בטבעיות."
-                },
-                {"role": "user", "content": incoming_msg}
-            ]
+    print(f"📩 הודעה התקבלה מ-{sender}: {incoming_msg}")
+
+    resp = MessagingResponse()
+    msg = resp.message()
+
+    # תגובות חכמות לפי תוכן ההודעה
+    if "תור" in incoming_msg or "קביעת תור" in incoming_msg:
+        msg.body("מושלם! 🥰 מתי נוח לך להגיע? תאריך ושעה ואני פה 💅")
+    elif "מחיר" in incoming_msg or "מחירים" in incoming_msg:
+        msg.body(
+            "✨ מחירים ✨\n"
+            "מניקור קלאסי – 70 ₪\n"
+            "לק ג'ל – 120 ₪\n"
+            "בניית ציפורניים – 200 ₪\n"
+            "עיצוב אישי – בתיאום 💎\n\n"
+            "אם יש שאלה – אני כאן בשבילך ❤️"
         )
-        ai_reply = completion.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"❌ שגיאה מול OpenAI: {e}")
-        ai_reply = "מצטערת, הייתה תקלה זמנית. נסה שוב עוד רגע."
+    elif "היי" in incoming_msg or "שלום" in incoming_msg:
+        msg.body("שלום מהממת! 💖 אני חלי, מניקוריסטית שמגשימה ציפורניים חלומיות ✨ איך אפשר לעזור?")
+    else:
+        msg.body("תודה שפנית אליי! 🌸 אני פה לשאלות, מחירים או קביעת תורים 💅")
 
-    print(f"💬 תשובה שנשלחה ל-{from_number}: {ai_reply}")
+    return str(resp)
 
-    # יצירת תגובה ל-Twilio
-    twilio_resp = MessagingResponse()
-    twilio_resp.message(ai_reply)
-    return str(twilio_resp)
-
-# הפעלת השרת באופן מקומי (לצורך בדיקות בלבד)
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(debug=True)
