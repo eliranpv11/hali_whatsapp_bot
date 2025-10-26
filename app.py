@@ -35,7 +35,7 @@ def send_to_hali_telegram(msg: str):
 
 
 # ==========================================================
-# 🟢 1. נקודת וואטסאפ (Twilio Webhook)
+# 🟢 1. דלת וואטסאפ (Twilio Webhook)
 # ==========================================================
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_reply():
@@ -80,7 +80,7 @@ def whatsapp_reply():
 
 
 # ==========================================================
-# 🔵 2. נקודת טלגרם (Telegram Webhook)
+# 🔵 2. דלת טלגרם (Telegram Webhook)
 # ==========================================================
 @app.route("/telegram", methods=["POST"])
 def telegram_reply():
@@ -93,43 +93,7 @@ def telegram_reply():
     user_name = data["message"]["from"].get("first_name", "לא ידוע")
 
     print(f"💬 הודעה מטלגרם ({user_name} / {chat_id}): {incoming_msg}")
+    send_to_admin_log(f"💬 טלגרם ({user_name}): {incoming_msg}")
 
     if not incoming_msg:
-        send_message_telegram(chat_id, "אני כאן 💅 מה תרצי לשאול או לקבוע?")
-        return "ok", 200
-
-    try:
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": SYSTEM_PERSONA},
-                {"role": "user", "content": incoming_msg}
-            ],
-            temperature=0.8,
-            max_tokens=300,
-        )
-
-        reply = completion.choices[0].message.content
-        send_message_telegram(chat_id, reply)
-
-    except Exception as e:
-        print("❌ שגיאה בטלגרם:", e)
-        send_message_telegram(chat_id, "אופס, הייתה תקלה קטנה 💅 נסי שוב עוד רגע")
-
-    return "ok", 200
-
-
-# ===== פונקציה כללית לשליחת הודעות למשתמשים בטלגרם =====
-def send_message_telegram(chat_id, text):
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": chat_id, "text": text})
-    except Exception as e:
-        print("❌ שגיאה בשליחת הודעה לטלגרם:", e)
-
-
-# ==========================================================
-# 🚀 הפעלת השרת
-# ==========================================================
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+       
