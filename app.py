@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import os
 import requests
 
-# טוען את המפתחות מה-.env
+# טעינת מפתחות מה-.env
 load_dotenv()
 
 # התחברות לשירותים
@@ -16,7 +16,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 app = Flask(__name__)
 
-# ===== אישיות של חלי =====
+# אישיות של חלי
 SYSTEM_PERSONA = (
     "את חלי 💅 – בונת ציפורניים מקצועית עם ניסיון של כמעט שלוש שנים בלבד. "
     "תמיד תצייני 'כמעט שלוש שנים' – לעולם לא יותר. "
@@ -25,23 +25,23 @@ SYSTEM_PERSONA = (
     "תדברי עברית טבעית, קלילה ונעימה, עם אמוג׳ים עדינים 💅✨🌸🐾."
 )
 
-# ===== פונקציה לשליחת הודעה לטלגרם =====
-def send_to_telegram(msg: str):
+# פונקציה לשליחת הודעה לטלגרם של חלי (למעקב בלבד)
+def send_to_hali_telegram(msg: str):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         data = {"chat_id": TELEGRAM_CHAT_ID, "text": msg}
         requests.post(url, data=data)
     except Exception as e:
-        print("❌ טעות בטלגרם:", e)
+        print("❌ טעות בטלגרם של חלי:", e)
 
-# ===== נקודת וואטסאפ =====
+# דלת וואטסאפ (Twilio Webhook)
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_reply():
     incoming_msg = (request.form.get("Body") or "").strip()
     sender = request.form.get("From") or "unknown"
 
-    print(f"💬 הודעה מ-{sender}: {incoming_msg}")
-    send_to_telegram(f"💬 הודעה חדשה מוואטסאפ ({sender}):\n{incoming_msg}")
+    print(f"💬 הודעה מוואטסאפ ({sender}): {incoming_msg}")
+    send_to_hali_telegram(f"💬 וואטסאפ ({sender}): {incoming_msg}")
 
     tw = MessagingResponse()
 
@@ -62,17 +62,18 @@ def whatsapp_reply():
 
         reply = completion.choices[0].message.content
 
-        # שליחה לטלגרם גם של התשובה של חלי
-        send_to_telegram(f"💅 תשובת חלי ל-{sender}:\n{reply}")
+        # שליחה גם לטלגרם של חלי
+        send_to_hali_telegram(f"💅 תשובת חלי (וואטסאפ):\n{reply}")
 
         tw.message(reply)
         return str(tw)
 
     except Exception as e:
-        print("❌ שגיאה:", e)
-        send_to_telegram(f"⚠️ שגיאה בחלי:\n{e}")
+        print("❌ שגיאה בוואטסאפ:", e)
+        send_to_hali_telegram(f"⚠️ שגיאה בוואטסאפ: {e}")
         tw.message("אופס, הייתה תקלה קטנה 💅 נסי שוב עוד רגע")
         return str(tw), 200
 
+# הפעלת השרת
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
