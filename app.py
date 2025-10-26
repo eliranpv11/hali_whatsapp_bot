@@ -5,41 +5,47 @@ from openai import OpenAI
 import os
 from dotenv import load_dotenv
 
+# טוען משתני סביבה
 load_dotenv()
+
+# חיבור ל-OpenAI
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = Flask(__name__)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_reply():
-    incoming_msg = request.form.get("Body", "").strip()
-    from_number = request.form.get("From", "")
+    incoming_msg = request.form.get("Body")
+    from_number = request.form.get("From")
     print(f"📩 התקבלה הודעה מ-{from_number}: {incoming_msg}")
 
     try:
-        # תשובה מבינה מלאכותית
+        # תשובה מבינה מלאכותית (דגם חכם, חסכוני ומהיר)
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "אתה העוזרת האישית חלי, ענה תמיד בעברית, בטון אישי ונעים."},
+                {
+                    "role": "system",
+                    "content": "את העוזרת האישית חלי. דברי תמיד בעברית, בטון אישי, חמים וטבעי."
+                },
                 {"role": "user", "content": incoming_msg}
             ]
         )
         ai_reply = completion.choices[0].message.content.strip()
     except Exception as e:
+        print(f"❌ שגיאה: {e}")
         ai_reply = "מצטערת, אירעה תקלה זמנית. נסה שוב מאוחר יותר."
 
     print(f"💬 תשובה שנשלחה ל-{from_number}: {ai_reply}")
 
-    # תשובה חזרה לוואטסאפ בלבד
+    # מחזיר תשובה לוואטסאפ בלבד
     twilio_resp = MessagingResponse()
     twilio_resp.message(ai_reply)
     return str(twilio_resp)
 
 @app.route("/", methods=["GET"])
 def home():
-    return "✅ Hali WhatsApp Bot is active and running!"
+    return "✅ Hali WhatsApp Bot is running!"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
