@@ -35,7 +35,7 @@ def send_to_hali_telegram(msg: str):
 
 
 # ==========================================================
-# 🟢 1. דלת וואטסאפ (Twilio Webhook)
+# 🟢 דלת וואטסאפ (Twilio Webhook)
 # ==========================================================
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_reply():
@@ -80,7 +80,7 @@ def whatsapp_reply():
 
 
 # ==========================================================
-# 🔵 2. דלת טלגרם (Telegram Webhook)
+# 🔵 דלת טלגרם (Telegram Webhook)
 # ==========================================================
 @app.route("/telegram", methods=["POST"])
 def telegram_reply():
@@ -93,7 +93,6 @@ def telegram_reply():
     user_name = data["message"]["from"].get("first_name", "לא ידוע")
 
     print(f"💬 הודעה מטלגרם ({user_name} / {chat_id}): {incoming_msg}")
-    send_to_admin_log(f"💬 טלגרם ({user_name}): {incoming_msg}")
 
     if not incoming_msg:
         send_message_telegram(chat_id, "אני כאן 💅 מה תרצי לשאול או לקבוע?")
