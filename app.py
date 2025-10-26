@@ -4,16 +4,19 @@ from twilio.twiml.messaging_response import MessagingResponse
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
+import requests
 
-# טעינת מפתחות מה-.env
+# טעינת המפתחות מה-.env
 load_dotenv()
 
-# התחברות לשירותים
+# חיבור ל-OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# רק משתנים שקשורים לוואטסאפ
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
 app = Flask(__name__)
 
-# אישיות של חלי
+# אישיות של הבוט
 SYSTEM_PERSONA = (
     "את חלי 💅 – בונת ציפורניים מקצועית עם ניסיון של כמעט שלוש שנים בלבד. "
     "תמיד תצייני 'כמעט שלוש שנים' – לעולם לא יותר. "
@@ -22,7 +25,7 @@ SYSTEM_PERSONA = (
     "תדברי עברית טבעית, קלילה ונעימה, עם אמוג׳ים עדינים 💅✨🌸🐾."
 )
 
-# דלת וואטסאפ (Twilio Webhook)
+# Webhook של וואטסאפ
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_reply():
     incoming_msg = (request.form.get("Body") or "").strip()
@@ -30,6 +33,7 @@ def whatsapp_reply():
 
     print(f"💬 הודעה מוואטסאפ ({sender}): {incoming_msg}")
 
+    # הגדרת תשובה לבוט
     tw = MessagingResponse()
 
     if not incoming_msg:
@@ -37,6 +41,7 @@ def whatsapp_reply():
         return str(tw)
 
     try:
+        # שליחת ההודעה ל-OpenAI לקבלת תשובה
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -49,6 +54,7 @@ def whatsapp_reply():
 
         reply = completion.choices[0].message.content
 
+        # החזרת התשובה לוואטספ
         tw.message(reply)
         return str(tw)
 
@@ -56,6 +62,7 @@ def whatsapp_reply():
         print("❌ שגיאה בוואטסאפ:", e)
         tw.message("אופס, הייתה תקלה קטנה 💅 נסי שוב עוד רגע")
         return str(tw), 200
+
 
 # הפעלת השרת
 if __name__ == "__main__":
